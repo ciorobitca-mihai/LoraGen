@@ -1,0 +1,37 @@
+<!-- Fullscreen Hamburger Menu Modal -->
+<div id="mobile-menu"
+    class="fixed inset-0 bg-white dark:bg-gray-900 bg-opacity-95 z-50 hidden flex flex-col justify-center items-center p-8 overflow-y-auto text-center">
+
+    <!-- Close button -->
+    <button id="close-menu" class="absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+        <i data-lucide="x" class="w-6 h-6 text-gray-800 dark:text-gray-200"></i>
+    </button>
+
+    <!-- Centered content container -->
+    <div class="flex flex-col items-center justify-center gap-10 text-xl font-medium">
+
+        <!-- Navigation links -->
+        <div class="flex flex-col items-center gap-6">
+            {% set nav_items = [
+            {'name': 'Home', 'icon': 'home', 'url': '/dashboard/'},
+            {'name': 'Jobs', 'icon': 'briefcase', 'url': '/dashboard/jobs/'},
+            {'name': 'Basket', 'icon': 'shopping-basket', 'url': '/dashboard/basket/'},
+            {'name': 'Profile', 'icon': 'user', 'url': '/dashboard/profile/'}
+            ] %}
+            {% for item in nav_items %}
+            <a href="{{ item.url }}"
+                class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition
+            {% if request.path == item.url %} text-blue-600 dark:text-blue-400 {% else %} text-gray-700 dark:text-gray-200 {% endif %}">
+                <i data-lucide="{{ item.icon }}" class="w-6 h-6"></i>
+                {{ item.name }}
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- Logout button -->
+        <button onclick="logout()"
+            class="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center gap-2 transition">
+            <i data-lucide="log-out" class="w-5 h-5"></i> Logout
+        </button>
+    </div>
+</div>

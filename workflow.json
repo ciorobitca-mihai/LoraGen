@@ -1,0 +1,323 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-image",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -656,
+        96
+      ],
+      "id": "c51d2e2d-fa4f-4634-835b-279996357dd7",
+      "name": "Start",
+      "webhookId": "6d7226c3-1cce-449a-bc77-5eefbe88cd38"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.runware.ai/v1",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n    \"Content-Type\": \"application/json\",\n    \"Authorization\": \"Bearer \"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $node.Start.json.body.data }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -224,
+        96
+      ],
+      "id": "5dd6ad47-26ed-4b5b-a473-9ce24a6fc1c8",
+      "name": "GenerateImage",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://lora-gen-vercel.vercel.app/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "filename",
+              "value": "={{ $node.Start.json.body.id }}.jpeg"
+            },
+            {
+              "name": "folder",
+              "value": "=storage/{{ $node.Start.json.body.email }}/generated_images"
+            },
+            {
+              "name": "image_url",
+              "value": "={{ $node.GenerateImage.json.data[0].imageURL }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        192,
+        192
+      ],
+      "id": "1fd7f142-4907-4f24-9beb-53047a0a903f",
+      "name": "SaveImage"
+    },
+    {
+      "parameters": {
+        "tableId": "generated_images",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $node.Start.json.body.id }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $node.Start.json.body.email }}"
+            },
+            {
+              "fieldId": "prompt",
+              "fieldValue": "={{ $node.Start.json.body.prompt }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        96
+      ],
+      "id": "c5dd810f-aebd-4f9f-b316-87edf3f811ae",
+      "name": "CreateRow",
+      "alwaysOutputData": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "AudVyzukn7B02tlS",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "generated_images",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $node.Start.json.body.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $node.GenerateImage.json.data[0].imageURL }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        96
+      ],
+      "id": "0dba13ea-6498-4ca3-ab11-4560663aeb62",
+      "name": "UpdateUrl",
+      "alwaysOutputData": false,
+      "retryOnFail": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "AudVyzukn7B02tlS",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "generated_images",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $node.Start.json.body.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "completed"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        416,
+        192
+      ],
+      "id": "34360d84-b3b1-479a-9e31-1d5a3be38236",
+      "name": "UpdateStatusSuccess",
+      "credentials": {
+        "supabaseApi": {
+          "id": "AudVyzukn7B02tlS",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "generated_images",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $node.Start.json.body.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "error"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ $node[\"GenerateImage\"].json[\"error\"][\"code\"] || \"unknown error\" }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        384
+      ],
+      "id": "f3d12c94-d990-4c19-aed8-3b37d9911bb3",
+      "name": "UpdateStatusError",
+      "credentials": {
+        "supabaseApi": {
+          "id": "AudVyzukn7B02tlS",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ $node[\"GenerateImage\"].json[\"error\"][\"code\"] || \"unknown error\" }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        192,
+        384
+      ],
+      "id": "61cf8a24-1b5b-4c95-84ad-d40fd43faee6",
+      "name": "Stop and Error"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "CreateRow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GenerateImage": {
+      "main": [
+        [
+          {
+            "node": "UpdateUrl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "UpdateStatusError",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SaveImage": {
+      "main": [
+        [
+          {
+            "node": "UpdateStatusSuccess",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CreateRow": {
+      "main": [
+        [
+          {
+            "node": "GenerateImage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UpdateUrl": {
+      "main": [
+        [
+          {
+            "node": "SaveImage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UpdateStatusError": {
+      "main": [
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9554ed6c4727d1f98802def147e004afcb20fa7fdb0bd1119224402f93205f93"
+  }
+}

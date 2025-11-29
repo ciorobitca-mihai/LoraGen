@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lora GEN</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Hide scrollbar for all browsers */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+            overflow: auto;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 600: '#2563eb', 700: '#1d4ed8' }
+                    }
+                }
+            }
+        }
+
+        // Dark mode setup
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage)
+            && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            const sunIcon = document.getElementById('icon-sun');
+            const moonIcon = document.getElementById('icon-moon');
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.theme = 'light';
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+            } else {
+                html.classList.add('dark');
+                localStorage.theme = 'dark';
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+            }
+        }
+
+        function openJobModal(button) {
+            const jobId = button.dataset.jobId;
+            const prompt = button.dataset.prompt;
+            const mainImage = button.dataset.image;
+
+            document.getElementById('job-modal-title').textContent = `Job ID: ${jobId}`;
+
+            const copyIconContainer = document.getElementById('job-modal-title');
+            copyIconContainer.innerHTML += `
+    <i id="copy-job-id" data-lucide="files"
+       class="w-5 h-5 cursor-pointer text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"></i>
+    <span id="copy-job-id-text" class="text-sm">Copy</span>
+`;
+
+            // Now create Lucide icon
+            if (typeof lucide !== 'undefined') lucide.createIcons({ "defaultWidth": 20, "defaultHeight": 20 });
+
+            document.getElementById('job-modal-prompt').textContent = prompt;
+
+            document.getElementById('job-modal').classList.remove('hidden');
+
+            // Copy ID button
+            const copyIcon = document.getElementById('copy-job-id');
+            const copyText = document.getElementById('copy-job-id-text');
+
+            copyIcon.onclick = () => {
+                navigator.clipboard.writeText(jobId).then(() => {
+                    // Change "Copy" to "Copied"
+                    const originalText = copyText.textContent;
+                    copyText.textContent = 'Copied';
+                    setTimeout(() => {
+                        copyText.textContent = originalText;
+                    }, 1000); // revert after 1 second
+                }).catch(err => console.error('Failed to copy:', err));
+            };
+
+        }
+
+        function closeJobModal() {
+            document.getElementById('job-modal').classList.add('hidden');
+        }
+
+        function openImageModal(imgSrc) {
+            const modal = document.getElementById('image-modal');
+            const img = document.getElementById('image-modal-img');
+            img.src = imgSrc;
+            modal.classList.remove('hidden');
+        }
+
+        function closeImageModal() {
+            document.getElementById('image-modal').classList.add('hidden');
+        }
+
+        async function logout() {
+            try {
+                const response = await fetch('/auth/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Logout failed: ${response.status}`);
+                }
+
+                // Optionally handle response
+                const result = await response.json();
+                console.log('Logged out:', result.message);
+
+                window.location.href = '/auth/login';
+            } catch (error) {
+                console.error('Error logging out:', error);
+            }
+        }
+
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const sunIcon = document.getElementById('icon-sun');
+            const moonIcon = document.getElementById('icon-moon');
+            if (document.documentElement.classList.contains('dark')) {
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+            } else {
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+            }
+            lucide.createIcons();
+        });
+    </script>
+</head>
+
+<body
+    class="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-200 overflow-hidden no-scrollbar">
+
+    {% include 'components/_navbar.html' %}
+
+    <!-- Main Content -->
+    <main
+        class="flex-1 flex flex-col p-6 gap-6 mt-16 lg:mt-16 h-full max-w-5xl mx-auto w-full overflow-auto no-scrollbar pb-4 sm:pb-[]">
+
+        <div class="flex gap-4 items-start w-full">
+            <!-- All Tasks -->
+            <div
+                class="relative bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm flex-1 flex flex-col items-center justify-center">
+                <div
+                    class="absolute -top-2 -left-2 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                    {{ session["total"] }}
+                </div>
+                <i data-lucide="list-check" class="text-blue-600" style="width:32px; height:32px;"></i>
+                <span class="hidden sm:block text-sm font-medium text-gray-800 dark:text-gray-100 mt-2">
+                    All Tasks
+                </span>
+            </div>
+
+            <!-- Completed -->
+            <div
+                class="relative bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm flex-1 flex flex-col items-center justify-center">
+                <div
+                    class="absolute -top-2 -left-2 bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                    {{ session["completed"] }}
+                </div>
+                <i data-lucide="check-circle" class="text-green-600" style="width:32px; height:32px;"></i>
+                <span class="hidden sm:block text-sm font-medium text-gray-800 dark:text-gray-100 mt-2">
+                    Completed
+                </span>
+            </div>
+
+            <!-- Pending -->
+            <div
+                class="relative bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm flex-1 flex flex-col items-center justify-center">
+                <div
+                    class="absolute -top-2 -left-2 bg-yellow-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                    {{ session["pending"] }}
+                </div>
+                <i data-lucide="hourglass" class="text-yellow-600" style="width:32px; height:32px;"></i>
+                <span class="hidden sm:block text-sm font-medium text-gray-800 dark:text-gray-100 mt-2">
+                    Pending
+                </span>
+            </div>
+
+            <!-- Failed -->
+            <div
+                class="relative bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm flex-1 flex flex-col items-center justify-center">
+                <div
+                    class="absolute -top-2 -left-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                    {{ session["failed"] }}
+                </div>
+                <i data-lucide="alert-triangle" class="text-red-600" style="width:32px; height:32px;"></i>
+                <span class="hidden sm:block text-sm font-medium text-gray-800 dark:text-gray-100 mt-2">
+                    Failed
+                </span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+            <button id="delete-selected" disabled
+                class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm cursor-not-allowed opacity-50 w-full">
+                Delete Selected
+            </button>
+
+            <button id="delete-all" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm w-full">
+                Delete All
+            </button>
+
+            <button id="download-all"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm w-full">
+                Download All
+            </button>
+        </div>
+
+        <div id="alert" class="hidden bg-green-100 border border-green-400 text-green-700 px-4 py-1 rounded relative">
+            <strong class="font-bold" id="alert-title"></strong>
+            <span class="block sm:inline" id="alert-message"></span>
+        </div>
+
+        <!-- Simple Pagination: Only Current Page and Navigation -->
+        <div class="w-full flex justify-center mt-2">
+            <nav aria-label="Page navigation example" class="w-full">
+                <ul class="flex justify-center gap-1 text-lg">
+
+                    {% set total_pages = (session["total"] // per_page) + (1 if session["total"] % per_page else 0) %}
+
+                    <!-- Previous buttons -->
+                    {% if page > 1 %}
+                    <li>
+                        <a href="{{ url_for('dashboard.jobs', page=1, per_page=per_page) }}"
+                            class="flex items-center justify-center px-3 py-2 text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
+                            «
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('dashboard.jobs', page=page-1, per_page=per_page) }}"
+                            class="flex items-center justify-center px-3 py-2 text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
+                            ‹
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <!-- Current page only -->
+                    <li>
+                        <span
+                            class="flex items-center justify-center px-3 py-2 text-blue-600 border border-gray-300 bg-blue-50 rounded-lg dark:border-gray-700 dark:bg-gray-700 dark:text-white">
+                            {{ page }}
+                        </span>
+                    </li>
+
+                    <!-- Next buttons -->
+                    {% if page < total_pages %} <li>
+                        <a href="{{ url_for('dashboard.jobs', page=page+1, per_page=per_page) }}"
+                            class="flex items-center justify-center px-3 py-2 text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
+                            ›
+                        </a>
+                        </li>
+                        <li>
+                            <a href="{{ url_for('dashboard.jobs', page=total_pages, per_page=per_page) }}"
+                                class="flex items-center justify-center px-3 py-2 text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
+                                »
+                            </a>
+                        </li>
+                        {% endif %}
+
+                </ul>
+            </nav>
+        </div>
+
+
+        <div class="flex-1 overflow-auto mt-2 mb-6">
+            <form id="bulk-delete-form">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {% for job in jobs %}
+                    <div class="job-card bg-white border border-gray-200 rounded-xl shadow-md dark:bg-gray-800 dark:border-gray-700 overflow-hidden flex flex-col h-full"
+                        data-job-id="{{ job.id }}">
+                        <div
+                            class="relative w-full h-64 flex-shrink-0 rounded-lg overflow-hidden bg-gray-50 image-container">
+                            <input id="inline-checkbox" type="checkbox" value="{{ job.id }}"
+                                class="absolute top-2 left-2 w-6 h-6 text-blue-600 bg-gray-100 border-blue-300 rounded-sm focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+                            {% if job.status == 'completed' %}
+                            <img class="w-full h-full object-cover"
+                                src="{{ storage_link }}/{{ job.email }}/generated_images/{{ job.id }}.jpeg"
+                                alt="Blog Image" onerror="handleImageLoadError(this, '{{ job.id }}')"
+                                onclick="openImageModal(this.src)" />
+
+                            {% elif job.status == 'failed' or job.status == 'error' %}
+                            <div class="image-container flex items-center justify-center h-full">
+                                <span class="text-red-600 font-medium text-center px-4">
+                                    ⚠️ {{ job.message or 'Failed to generate image.' }}
+                                </span>
+                            </div>
+
+
+                            {% else %}
+                            <div
+                                class="image-container flex items-center justify-center gap-2 text-gray-600 font-medium text-lg animate-pulse h-full">
+                                <svg class="w-5 h-5 animate-spin text-gray-500" xmlns="http://www.w3.org/2000/svg"
+                                    fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                        stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                                </svg>
+                                <span>Generating...</span>
+                            </div>
+                            {% endif %}
+
+
+                            <!-- Soft intuitive fallback -->
+                            <div
+                                class="hidden absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-2 opacity-70"
+                                    viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M3 5a2 2 0 012-2h14a2 2 0 012 2v16l-4-4H5a2 2 0 01-2-2V5z" />
+                                    <circle cx="8.5" cy="10.5" r="1.5" />
+                                </svg>
+                                <span class="text-sm font-medium">No image available</span>
+                            </div>
+                        </div>
+
+                        <div class="p-5 space-y-3 flex-1 flex flex-col overflow-auto">
+                            <p class="text-gray-700 dark:text-gray-400">{{ job.created_at[:10] }} {{
+                                job.created_at[11:19] }}</p>
+
+                            <div class="flex gap-3 mt-auto">
+                                <!-- Details Button -->
+                                <div class="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-400 transition cursor-pointer"
+                                    data-job-id="{{ job.id }}" data-prompt="{{ job.prompt }}"
+                                    data-image="{{ job.generated_image_url }}"
+                                    data-source-images="{{ job.source_images | join(',') }}"
+                                    onclick="openJobModal(this)">
+                                    <i data-lucide="info" class="w-5 h-5"></i>
+                                    More
+                                </div>
+
+                                <!-- Download Button -->
+                                <a href="/dashboard/jobs/download/{{ job.id }}"
+                                    class="download-link flex items-center justify-center px-2 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                                    data-job-id="{{ job.id }}">
+                                    <i data-lucide="download" class="w-5 h-5"></i>
+                                </a>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    {% endfor %}
+                </div>
+            </form>
+        </div>
+
+
+
+        <!-- Job Details Modal -->
+        <div id="job-modal" class="fixed inset-0 z-50 hidden bg-black/70 flex items-center justify-center p-4">
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg max-w-2xl w-full overflow-hidden shadow-xl h-[60vh]">
+                <!-- Header -->
+                <div class="flex justify-between items-center p-4 border-b border-gray-300 dark:border-gray-600">
+                    <div class="flex items-center gap-2">
+                        <h2 id="job-modal-title"
+                            class="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            Job ID
+                            <span id="copy-job-id-wrapper"
+                                class="flex items-center gap-1 cursor-pointer text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
+                                <i id="copy-job-id" data-lucide="files" class="w-5 h-5"></i>
+                                <span id="copy-job-id-text" class="text-sm">Copy</span>
+                            </span>
+                        </h2>
+                    </div>
+                    <button onclick="closeJobModal()"
+                        class="relative z-50 text-black dark:text-white font-bold hover:text-red-600 text-2xl">&times;</button>
+                </div>
+                <!-- Body -->
+                <div class="p-4 text-center">
+                    <!-- Prompt -->
+                    <div class="text-left text-gray-800 dark:text-gray-200">
+                        <strong>Prompt:</strong>
+                        <div class="mt-1 max-h-[60vh] overflow-auto no-scrollbar">
+                            <p id="job-modal-prompt" class="break-words whitespace-pre-wrap">
+                                <!-- Your long prompt content here -->
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Image Modal -->
+        <div id="image-modal" class="fixed inset-0 z-50 hidden bg-black/70 flex items-center justify-center p-4">
+            <div class="max-w-3xl w-full mx-auto rounded-xl overflow-hidden shadow-2xl bg-white dark:bg-gray-900">
+                <!-- Header Section (optional) -->
+                <div
+                    class="flex justify-between items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+                    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Image Preview</h2>
+                    <button onclick="closeImageModal()"
+                        class="text-gray-600 hover:text-gray-900 dark:hover:text-white text-4xl leading-none">&times;</button>
+                </div>
+
+                <!-- Image Display -->
+                <div class="p-4">
+                    <img id="image-modal-img" class="mx-auto max-h-[75vh] w-auto object-contain rounded-md" src=""
+                        alt="Full Image">
+                </div>
+            </div>
+
+        </div>
+    </main>
+    <!-- Progress Overlay -->
+    <div id="download-progress-overlay"
+        class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+
+        <div class="bg-white dark:bg-gray-800 px-6 py-5 rounded-lg shadow-xl text-center w-80">
+            <div class="flex items-center justify-center gap-3 mb-3">
+                <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                <span id="zip-progress-title" class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    Preparing ZIP...
+                </span>
+            </div>
+
+            <div id="zip-progress-details" class="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                0 / ? images downloaded
+            </div>
+
+            <button id="cancel-download" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm">
+                Cancel Download
+            </button>
+        </div>
+    </div>
+
+
+    {% include 'components/_modal-navbar.html' %}
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = "https://ntvibateqvasbeygcsvr.supabase.co"
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50dmliYXRlcXZhc2JleWdjc3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTI4MzUsImV4cCI6MjA3Mzc2ODgzNX0.x5fXwehBv8oJzCMoQBNbN2fade010_HN7u4nriqk3QM"
+        const SUPABASE_SESSION = {
+            access_token: "{{ session['access_token'] }}",
+            refresh_token: "{{ session['refresh_token'] }}"
+        };
+
+        console.log("Access token:", SUPABASE_SESSION.access_token);
+        console.log("Refresh token:", SUPABASE_SESSION.refresh_token);
+
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function initSupabase() {
+            const { data, error } = await supabaseClient.auth.setSession(SUPABASE_SESSION);
+
+            console.log("Session set:", data.session);
+            const userResult = await supabaseClient.auth.getUser();
+            console.log("Current user:", userResult.data.user);
+
+            if (error) {
+                console.error("Failed to set session:", error);
+                return;
+            }
+
+            const { data: rows, error: fetchError } = await supabaseClient
+                .from("generated_images")
+                .select();
+            if (fetchError) console.error("Fetch error:", fetchError);
+            else console.log("Rows fetched:", rows);
+        }
+
+        initSupabase();
+
+    </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", async function () {
+            initRealtime();
+        });
+    </script>
+
+    <script>
+        async function initRealtime() {
+            const channel = supabaseClient
+                .channel("public:generated_images")
+                .on(
+                    "postgres_changes",
+                    { event: "UPDATE", schema: "public", table: "generated_images" },
+                    (payload) => {
+                        console.log("🔥 Realtime event received:", payload);
+                        handleImageChange(payload);
+                    }
+                )
+                .subscribe();
+
+            console.log(channel)
+
+            channel.on("status", (status) => console.log("📡 Channel status:", status));
+            channel.on("error", (err) => console.error("❌ Channel error:", err));
+            channel.on("close", () => console.warn("⚠️ Channel closed"));
+        }
+        function handleImageChange(payload) {
+            console.log("Payload:", payload);
+            const job = payload.new;
+            console.log("Payload:", job);
+            if (!job || !job.id) return;
+
+            const card = document.querySelector(`.job-card[data-job-id="${job.id}"]`);
+            if (!card) {
+                console.warn("⚠️ No card found for job", job.id);
+                return;
+            }
+
+            const container = card.querySelector(".image-container");
+            const downloadLink = card.querySelector(".download-link");
+
+            if (!container || !downloadLink) {
+                console.error("❌ Missing container or download link in card for job", job.id);
+                return;
+            }
+
+            // Reset download link
+            downloadLink.classList.remove("bg-green-600", "hover:bg-green-700", "bg-gray-400", "cursor-not-allowed", "pointer-events-none");
+            downloadLink.removeAttribute("href");
+            downloadLink.removeAttribute("download");
+
+            if (job.status === "completed") {
+                console.log("completed");
+
+                container.innerHTML = `<img src="https://storage.googleapis.com/secret-api/storage/${job.email}/generated_images/${job.id}.jpeg" class="w-full h-full object-contain rounded-t-lg" alt="Generated image">`;
+                downloadLink.classList.add("bg-green-600", "hover:bg-green-700");
+                downloadLink.setAttribute("href", `https://storage.googleapis.com/secret-api/storage/${job.email}/generated_images/${job.id}.jpeg`);
+                downloadLink.setAttribute("download", "");
+            } else if (job.status === "pending") {
+                console.log("pending");
+
+                container.innerHTML = `<div class="flex items-center gap-2 text-gray-600 font-medium text-lg animate-pulse">
+            <svg class="w-5 h-5 animate-spin text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <span>Generating...</span>
+        </div>`;
+                downloadLink.classList.add("bg-gray-400", "cursor-not-allowed", "pointer-events-none");
+            } else if (job.status === "failed") {
+                console.log("failed");
+
+                container.innerHTML = `<span class="text-red-600 font-medium text-center px-4">⚠️ ${job.message || 'Failed to generate image.'}</span>`;
+                downloadLink.classList.add("bg-gray-400", "cursor-not-allowed", "pointer-events-none");
+            }
+
+            // Update any dynamic icons if necessary
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+    </script>
+
+    <script>
+        function handleImageLoadError(img, jobId) {
+            console.warn(`⚠️ Image for job ${jobId} not found.`);
+            img.onerror = null;
+            img.classList.add('hidden');
+
+            // Show the fallback UI
+            const fallback = img.nextElementSibling;
+            if (fallback) fallback.classList.remove('hidden');
+
+            // Disable the download button for this job
+            const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
+            if (card) {
+                const downloadLink = card.querySelector('.download-link');
+                if (downloadLink) {
+                    downloadLink.removeAttribute('href');
+                    downloadLink.removeAttribute('download');
+                    downloadLink.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    downloadLink.classList.add('bg-gray-400', 'cursor-not-allowed', 'pointer-events-none');
+                }
+            }
+        }
+
+        const deleteButton = document.getElementById('delete-selected');
+        const checkboxes = document.querySelectorAll('#bulk-delete-form input[type="checkbox"]');
+
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                const anyChecked = Array.from(checkboxes).some(c => c.checked);
+                deleteButton.disabled = !anyChecked;
+
+                if (anyChecked) {
+                    deleteButton.classList.remove('cursor-not-allowed', 'opacity-50');
+                    deleteButton.classList.add('hover:bg-red-700');
+                } else {
+                    deleteButton.classList.add('cursor-not-allowed', 'opacity-50');
+                    deleteButton.classList.remove('hover:bg-red-700');
+                }
+            });
+        });
+
+
+        document.getElementById('delete-selected').addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const form = document.getElementById('bulk-delete-form');
+            const checkedBoxes = form.querySelectorAll('input[type="checkbox"]:checked');
+            const jobIds = Array.from(checkedBoxes).map(cb => cb.value);
+
+            if (jobIds.length === 0) {
+                alert('Please select at least one job to delete.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/dashboard/jobs/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ job_ids: jobIds })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to delete jobs: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log(result);
+
+                // Optional: remove deleted jobs from UI immediately (old logic)
+                jobIds.forEach(id => {
+                    const card = document.querySelector(`.job-card[data-job-id="${id}"]`);
+                    if (card) card.remove();
+                });
+
+                showAlert("Info", "Jobs delete successfully", "info");
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+
+            } catch (error) {
+                console.error('Error deleting jobs:', error);
+                alert('An error occurred while deleting jobs: ' + error.message);
+            }
+        });
+
+
+        document.getElementById('delete-all').addEventListener('click', async () => {
+            const confirmed = confirm("Are you sure you want to delete ALL jobs? This cannot be undone.");
+            if (!confirmed) return;
+
+            try {
+                const response = await fetch('/dashboard/jobs', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    showAlert("Success", result.message, "success");
+                    document.querySelectorAll('.job-card').forEach(card => card.remove());
+                } else {
+                    showAlert("Error", result.message, "error");
+                }
+            } catch (err) {
+                console.error(err);
+                showAlert("Error", "Failed to delete all jobs", "error");
+            }
+
+            function showAlert(title, message, type = "error") {
+                const alertDiv = document.querySelector("#alert");
+                const alertTitle = alertDiv.querySelector("#alert-title");
+                const alertMessage = alertDiv.querySelector("#alert-message");
+
+                // Set title and message
+                alertTitle.textContent = title;
+                alertMessage.textContent = message;
+
+                // Remove existing color classes
+                alertDiv.classList.remove(
+                    "text-blue-800", "border-blue-300", "bg-blue-50",
+                    "text-green-800", "border-green-300", "bg-green-50",
+                    "text-red-800", "border-red-300", "bg-red-50",
+                    "dark:text-blue-400", "dark:border-blue-800", "dark:bg-gray-800",
+                    "dark:text-green-400", "dark:border-green-800", "dark:bg-gray-800",
+                    "dark:text-red-400", "dark:border-red-800", "dark:bg-gray-800"
+                );
+
+                // Add classes based on type
+                if (type === "success") {
+                    alertDiv.classList.add(
+                        "text-green-800", "border-green-300", "bg-green-50",
+                        "dark:text-green-400", "dark:border-green-800", "dark:bg-gray-800"
+                    );
+                } else if (type === "error") {
+                    alertDiv.classList.add(
+                        "text-red-800", "border-red-300", "bg-red-50",
+                        "dark:text-red-400", "dark:border-red-800", "dark:bg-gray-800"
+                    );
+                } else if (type === "info") {
+                    alertDiv.classList.add(
+                        "text-blue-800", "border-blue-300", "bg-blue-50",
+                        "dark:text-blue-400", "dark:border-blue-800", "dark:bg-gray-800"
+                    );
+                }
+
+                // Show the alert
+                alertDiv.classList.remove("hidden");
+            }
+        });
+
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+
+            const menu = document.getElementById('mobile-menu');
+            const openBtn = document.getElementById('hamburger-btn');
+            const closeBtn = document.getElementById('close-menu');
+
+            if (openBtn && menu && closeBtn) {
+                openBtn.addEventListener('click', () => {
+                    menu.classList.remove('hidden');
+                    document.body.style.overflow = 'hidden'; // prevent background scroll
+                });
+
+                closeBtn.addEventListener('click', () => {
+                    menu.classList.add('hidden');
+                    document.body.style.overflow = ''; // restore scroll
+                });
+            }
+        });
+    </script>
+    <script>
+        let abortController = null;
+        const downloadBtn = document.getElementById('download-all');
+        const overlay = document.getElementById('download-progress-overlay');
+        const details = document.getElementById('zip-progress-details');
+        let progressInterval;
+
+        downloadBtn.addEventListener('click', async () => {
+            if (!confirm("Download all completed jobs as a ZIP?")) return;
+
+            downloadBtn.disabled = true;
+            overlay.classList.remove("hidden");
+            details.textContent = "0 / 0 images downloaded";
+
+            // Start polling progress every 0.5s
+            progressInterval = setInterval(async () => {
+                try {
+                    const res = await fetch("/dashboard/jobs/download/progress");
+                    const data = await res.json();
+                    details.textContent = `${data.current} / ${data.total} images downloaded`;
+                } catch (err) {
+                    console.error("Failed to fetch progress:", err);
+                }
+            }, 1000);
+
+            try {
+                // Start actual ZIP download
+                const res = await fetch("/dashboard/jobs/download", { method: "POST" });
+                if (!res.ok) throw new Error("Download failed");
+
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "all_jobs.zip";
+                document.body.appendChild(a);
+                a.click();
+                URL.revokeObjectURL(url);
+
+            } catch (err) {
+                console.error(err);
+                details.textContent = "Download failed.";
+            } finally {
+                clearInterval(progressInterval);
+                overlay.classList.add("hidden");
+                downloadBtn.disabled = false;
+            }
+        });
+
+        // Cancel button
+        document.getElementById('cancel-download').addEventListener('click', () => {
+            if (abortController) abortController.abort();
+        });
+
+    </script>
+
+</body>
+
+</html>

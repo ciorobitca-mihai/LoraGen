@@ -1,0 +1,7 @@
+flask
+supabase
+requests
+python-dotenv
+Flask-Caching
+google-cloud-storage
+google-auth

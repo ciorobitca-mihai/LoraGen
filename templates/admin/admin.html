@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin - Manage Users</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body
+  class="min-h-screen bg-gradient-to-br from-indigo-700 via-purple-700 to-pink-700 flex items-center justify-center p-4">
+
+  <div class="w-full max-w-6xl bg-white rounded-2xl shadow-2xl p-6 flex flex-col h-[90vh]">
+    <!-- Header -->
+    <div class="text-center mb-6">
+      <div class="mx-auto w-16 h-16 flex items-center justify-center bg-indigo-100 text-indigo-700 rounded-full">
+        <!-- Heroicon: Cog -->
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+          class="w-8 h-8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h3m7.5 6a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <h2 class="mt-4 text-2xl font-bold text-gray-900">Admin - Manage Users</h2>
+      <p class="text-gray-600">View & search</p>
+    </div>
+
+    <!-- Search + Logout -->
+    <div class="mb-4 flex items-center justify-between gap-2">
+      <!-- Search Input -->
+      <input id="searchInput" type="text" placeholder="Search by email ..."
+        class="flex-1 rounded-lg border border-gray-300 p-2 focus:ring-2 focus:ring-indigo-600 focus:border-transparent shadow-sm">
+
+      <form method="POST">
+        <button id="logoutBtn"
+          class="flex items-center space-x-1 bg-red-600 hover:bg-red-700 p-2 rounded-md text-white text-base transition-fast">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          <span>Logout</span>
+        </button>
+      </form>
+    </div>
+
+
+    <!-- Desktop Table -->
+    <div class="hidden md:block flex-grow overflow-auto border rounded-lg shadow-sm">
+      {% if session.user %}
+      <div class="bg-yellow-100 text-yellow-900 p-3 rounded mb-3 flex justify-between items-center">
+        <div>You are impersonating <strong>{{ session.user_email }}</strong></div>
+        <form method="POST" action="{{ url_for('admin.stop_impersonation') }}">
+          <button type="submit" class="bg-gray-800 text-white px-3 py-1 rounded">Stop impersonation</button>
+        </form>
+      </div>
+      {% endif %}
+
+      <table class="table-auto w-full text-left border-collapse">
+        <thead class="sticky top-0 bg-gray-100 shadow-sm">
+          <tr>
+            <th class="p-3 font-semibold text-gray-700 text-center">Impersonate</th>
+            <th class="p-3 font-semibold text-gray-700 text-center">Email</th>
+            <th class="p-3 font-semibold text-gray-700 text-center">Last Login</th>
+            <th class="p-3 font-semibold text-gray-700 text-center">Verified</th>
+            <th class="p-3 font-semibold text-gray-700 text-center">Disable</th>
+            <th class="p-3 font-semibold text-gray-700 text-center">Danger</th>
+            <th class="p-3 font-semibold text-gray-700 text-center">Credits</th>
+          </tr>
+        </thead>
+
+        <tbody id="userTableDesktop" class="divide-y divide-gray-200">
+          {% for user in users %}
+          <tr class="hover:bg-gray-50 transition">
+            <td class="p-3 text-center">
+              <form method="POST" action="{{ url_for('admin.impersonate') }}">
+                <input type="hidden" name="user_id" value="{{ user.id }}">
+                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition">
+                  Login as
+                </button>
+              </form>
+            </td>
+            <td class="p-3 text-center">{{ user.email }}</td>
+            <td class="p-3 text-xs text-gray-500 text-center">
+              {{ (user.last_sign_in_at | default(None)) and user.last_sign_in_at.strftime('%Y-%m-%d %H:%M') or "Never"
+              }}
+            </td>
+            <td class="p-3 text-center align-middle">
+              <!-- Verify Toggle -->
+              <form method="POST" action="{{ url_for('admin.verify') }}">
+                <input type="hidden" name="user_id" value="{{ user.id }}">
+                <button type="submit"
+                  class="{% if user.email_confirmed_at %}bg-gray-400 cursor-not-allowed{% else %}bg-blue-500 hover:bg-blue-600{% endif %} text-white px-2 py-1 rounded transition"
+                  {% if user.email_confirmed_at %} disabled {% endif %}>
+                  {% if user.email_confirmed_at %}Verified{% else %}Verify{% endif %}
+                </button>
+              </form>
+
+            </td>
+            <td class="p-3 text-center align-middle">
+              <form method="POST" action="{{ url_for('admin.disable') }}">
+                <input type="hidden" name="user_id" value="{{ user.id }}">
+                <input type="hidden" name="disabled" value="{{ user.user_metadata.disabled == 'True' }}">
+                <button type="submit"
+                  class="{% if user.user_metadata.disabled == 'True' %}bg-gray-500 hover:bg-gray-600{% else %}bg-blue-500 hover:bg-blue-600{% endif %} text-white px-2 py-1 rounded transition">
+                  {% if user.user_metadata.disabled == 'True' %}Enable{% else %}Disable{% endif %}
+                </button>
+              </form>
+
+            </td>
+            <td class="p-3 text-center align-middle">
+              <form method="POST" action="{{ url_for('admin.delete_user') }}">
+                <input type="hidden" name="user_id" value="{{ user.id }}">
+                <button type="submit" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition">
+                  Delete
+                </button>
+              </form>
+            </td>
+            <td class="p-3 text-center align-middle">
+              <!-- Quick set/update form -->
+              <form method="POST" action="{{ url_for('admin.update_credits') }}"
+                class="flex items-center justify-center space-x-2">
+                <input type="hidden" name="user_id" value="{{ user.id }}">
+                <input type="number" name="credits" value="{{ user.user_metadata.credits or 0 }}" min="0"
+                  class="border rounded p-1 w-20 text-center">
+                <button type="submit" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition">
+                  Set
+                </button>
+              </form>
+            </td>
+          </tr>
+
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile Cards -->
+    <div id="userCards" class="block md:hidden space-y-4 overflow-auto flex-grow">
+      {% for user in users %}
+      <div class="border rounded-lg shadow-sm p-4 bg-gray-50">
+        <h3 class="text-base font-semibold text-gray-900">{{ user.email }}</h3>
+        <p class="text-xs text-gray-500 my-5">Last login: {{ (user.last_sign_in_at | default(None)) and
+          user.last_sign_in_at.strftime('%Y-%m-%d %H:%M') or "Never" }}
+        </p>
+
+        <div class="mt-3">
+          <form method="POST" action="{{ url_for('admin.impersonate') }}">
+            <input type="hidden" name="user_id" value="{{ user.id }}">
+            <button type="submit"
+              class="w-full bg-amber-500 text-white px-3 py-1 rounded text-sm shadow hover:bg-amber-600 transition">
+              Login as
+            </button>
+          </form>
+        </div>
+
+        <!-- Wrap Verify & Disable forms in a flex container -->
+        <div class="flex flex-col md:flex-row md:space-x-4 space-y-2 md:space-y-0">
+          <!-- Verified Toggle -->
+          <form method="POST" action="{{ url_for('admin.verify') }}" class="flex-1">
+            <input type="hidden" name="user_id" value="{{ user.id }}">
+            <button type="submit"
+              class="w-full {% if user.email_confirmed_at %}bg-gray-400 cursor-not-allowed{% else %}bg-blue-500 hover:bg-blue-600{% endif %} text-white px-2 py-1 rounded transition"
+              {% if user.email_confirmed_at %} disabled {% endif %}>
+              {% if user.email_confirmed_at %}Verified{% else %}Verify{% endif %}
+            </button>
+          </form>
+
+          <!-- Disable Toggle -->
+          <form method="POST" action="{{ url_for('admin.disable') }}" class="flex-1">
+            <input type="hidden" name="user_id" value="{{ user.id }}">
+            <input type="hidden" name="disabled" value="{{ user.user_metadata.disabled == 'True' }}">
+            <button type="submit"
+              class="w-full {% if user.user_metadata.disabled == 'True' %}bg-gray-500 hover:bg-gray-600{% else %}bg-blue-500 hover:bg-blue-600{% endif %} text-white px-2 py-1 rounded transition">
+              {% if user.user_metadata.disabled == 'True' %}Enable{% else %}Disable{% endif %}
+            </button>
+          </form>
+        </div>
+
+        <!-- Credits Update -->
+        <form method="POST" action="{{ url_for('admin.update_credits') }}" class="flex items-center mt-3">
+          <input type="hidden" name="user_id" value="{{ user.id }}">
+          <input type="number" name="credits" value="{{ user.user_metadata.credits or 0 }}" min="0"
+            class="w-full border border-gray-300 rounded-l-lg p-2 text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          <button type="submit"
+            class="bg-blue-500 text-white px-4 py-2 rounded-r-lg shadow hover:bg-blue-600 transition">
+            Set
+          </button>
+        </form>
+
+        <!-- Actions -->
+        <div class="mt-3">
+          <form method="POST" action="{{ url_for('admin.delete_user') }}">
+            <input type="hidden" name="user_id" value="{{ user.id }}">
+            <button type="submit"
+              class="w-full bg-red-500 text-white px-3 py-1 rounded text-sm shadow hover:bg-red-600 transition">
+              Delete
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      const res = await fetch("/auth/logout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        window.location.href = "/auth/login";  // redirect after logout
+      }
+    });
+  </script>
+
+</body>
+
+</html>
